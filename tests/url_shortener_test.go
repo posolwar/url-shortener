@@ -16,24 +16,47 @@ const (
 	host = "localhost:8082"
 )
 
+// blackbox testing get url
 func TestURLShortener_HappyPath(t *testing.T) {
-	u := url.URL{
-		Scheme: "http",
-		Host:   host,
+	testcases := []struct {
+		name     string
+		alias    string
+		url      string
+		login    string
+		password string
+		status   int
+	}{
+		{
+			name:     "happy path - with alias",
+			alias:    random.NewRandomString(10),
+			url:      gofakeit.URL(),
+			status:   http.StatusOK,
+			login:    "myuser",
+			password: "mypass",
+		},
 	}
 
-	e := httpexpect.Default(t, u.String())
+	url := url.URL{Scheme: "http", Host: host}
+	exp := httpexpect.Default(t, url.String())
 
-	e.
-		POST("/url").
-		WithJSON(save.Request{
-			URL:   gofakeit.URL(),
-			Alias: random.NewRandomString(10),
-		}).
-		WithBasicAuth("myuser", "mypass").
-		Expect().
-		Status(http.StatusOK).
-		JSON().
-		Object().
-		ContainsKey("alias")
+	for _, testcase := range testcases {
+		t.Run(testcase.name, func(t *testing.T) {
+			expectedBody := httpexpect.NewObject(t, map[string]interface{}{
+				"alias":  testcase.alias,
+				"status": testcase.status,
+			})
+
+			exp.POST("/url").
+				WithJSON(save.Request{
+					URL:   testcase.url,
+					Alias: testcase.alias,
+				}).
+				WithBasicAuth(testcase.login, testcase.password).
+				Expect().
+				Status(http.StatusOK).
+				JSON().
+				Object().
+				ContainsSubset(expectedBody)
+		})
+	}
 }
